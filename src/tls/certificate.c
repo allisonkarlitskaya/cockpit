@@ -21,6 +21,7 @@
 
 #include <assert.h>
 #include <err.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,7 +34,7 @@
 struct _Certificate
 {
   gnutls_certificate_credentials_t creds;
-  int ref_count;
+  atomic_int ref_count;
 };
 
 static Certificate *
