@@ -32,6 +32,8 @@ char *   strdupx                         (const char *s);
 
 char *   strndupx                        (const char *s,
                                           size_t n);
+void *   memdupx                         (const void *s,
+                                          size_t n);
 
 __attribute__((__format__ (__printf__, 2, 3)))
 int      asprintfx                       (char **strp,

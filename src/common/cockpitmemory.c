@@ -94,6 +94,16 @@ strndupx (const char *s,
   return r;
 }
 
+void *
+memdupx (const void *s,
+         size_t n)
+{
+  void *r = malloc (n);
+  if (r == NULL)
+    abort_errno ("failed to allocate memory for memdup");
+  return memcpy (r, s, n);
+}
+
 int
 asprintfx (char **strp,
            const char *fmt, ...)
