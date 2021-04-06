@@ -78,7 +78,7 @@ typedef struct
 } Buffer;
 
 /* a single TCP connection between the client (browser) and cockpit-tls */
-typedef struct {
+struct _Connection {
   int client_fd;
   int ws_fd;
 
@@ -90,7 +90,7 @@ typedef struct {
   Fingerprint fingerprint;
   int certfile_fd;
   int metadata_fd;
-} Connection;
+};
 
 #define BUFFER_SIZE (sizeof ((Buffer *) 0)->buffer)
 #define BUFFER_MASK (BUFFER_SIZE - 1)
@@ -801,40 +801,54 @@ create_metadata (int sockfd)
   return cockpit_json_print_finish_memfd (&stream);
 }
 
-void
-connection_thread_main (int fd)
+Connection *
+connection_new (int fd)
 {
   Connection self = { .client_fd = fd, .ws_fd = -1, .certfile_fd = -1, .metadata_fd = -1 };
 
-  assert (!buffer_can_write (&self.client_to_ws_buffer));
-  assert (!buffer_can_write (&self.ws_to_client_buffer));
-  assert (!self.tls);
+  return memdupx (&self, sizeof self);
+}
+
+void
+connection_thread_main (Connection *self)
+{
+  assert (!buffer_can_write (&self->client_to_ws_buffer));
+  assert (!buffer_can_write (&self->ws_to_client_buffer));
+  assert (!self->tls);
 
 #ifdef DEBUG
-  self.client_to_ws_buffer.name = "client-to-ws";
-  self.ws_to_client_buffer.name = "ws-to-client";
+  self->client_to_ws_buffer.name = "client-to-ws";
+  self->ws_to_client_buffer.name = "ws-to-client";
 #endif
 
   debug (CONNECTION, "New thread for fd %i", fd);
 
-  self.metadata_fd = create_metadata (fd);
+  self->metadata_fd = create_metadata (self->client_fd);
 
-  if (connection_handshake (&self) && connection_connect_to_wsinstance (&self))
-    connection_thread_loop (&self);
+  if (connection_handshake (self) && connection_connect_to_wsinstance (self))
+    connection_thread_loop (self);
 
   debug (CONNECTION, "Thread for fd %i is going to exit now", fd);
 
-  if (self.certfile_fd != -1)
-    certfile_close (parameters.cert_session_dir, self.certfile_fd, &self.fingerprint);
+  connection_free (self);
+}
 
-  if (self.tls)
-    gnutls_deinit (self.tls);
+void
+connection_free (Connection *self)
+{
+  if (self->certfile_fd != -1)
+    certfile_close (parameters.cert_session_dir, self->certfile_fd, &self->fingerprint);
 
-  if (self.client_fd != -1)
-    close (self.client_fd);
+  if (self->tls)
+    gnutls_deinit (self->tls);
 
-  if (self.ws_fd != -1)
-    close (self.ws_fd);
+  if (self->client_fd != -1)
+    close (self->client_fd);
+
+  if (self->ws_fd != -1)
+    close (self->ws_fd);
+
+  free (self);
 }
 
 /**

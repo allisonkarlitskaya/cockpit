@@ -36,6 +36,14 @@ connection_crypto_init (const char *certfile,
 void
 connection_cleanup (void);
 
-/* handle a new connection */
+/* Connection object */
+typedef struct _Connection Connection;
+
+Connection *
+connection_new (int fd);
+
 void
-connection_thread_main (int fd);
+connection_thread_main (Connection *self);
+
+void
+connection_free (Connection *self);

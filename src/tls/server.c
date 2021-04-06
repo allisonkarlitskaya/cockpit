@@ -92,9 +92,11 @@ check_sd_listen_pid (void)
 static void *
 server_connection_thread_start_routine (void *data)
 {
-  int fd = (uintptr_t) data;
+  Connection *connection = data;
 
-  connection_thread_main (fd);
+  connection_thread_main (connection);
+
+  connection_free (connection);
 
   /* teardown */
   {
@@ -163,7 +165,7 @@ handle_accept (int listen_fd)
 
   int r = pthread_create (&thread, &attr,
                           server_connection_thread_start_routine,
-                          (void *) (uintptr_t) fd);
+                          connection_new (fd));
 
   if (r != 0)
     {
