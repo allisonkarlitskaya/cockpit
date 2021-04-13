@@ -22,8 +22,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <gnutls/gnutls.h>
-
 /* init/teardown */
 void
 connection_set_directories (const char *wsinstance_sockdir,
@@ -31,7 +29,7 @@ connection_set_directories (const char *wsinstance_sockdir,
 
 void
 connection_crypto_init (const char *certfile,
-                        gnutls_certificate_request_t request_mode);
+                        bool client_cert_auth);
 
 void
 connection_cleanup (void);

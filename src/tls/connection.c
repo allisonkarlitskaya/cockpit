@@ -58,7 +58,7 @@
 
 /* cockpit-tls TCP server state (singleton) */
 static struct {
-  gnutls_certificate_request_t request_mode;
+  bool client_cert_auth;
   Certificate *certificate;
   int wsinstance_sockdir;
   int cert_session_dir;
@@ -642,7 +642,8 @@ connection_handshake (Connection *self)
         }
 
       gnutls_session_set_verify_function (self->tls, verify_peer_certificate);
-      gnutls_certificate_server_set_request (self->tls, parameters.request_mode);
+      if (parameters.client_cert_auth)
+        gnutls_certificate_server_set_request (self->tls, GNUTLS_CERT_REQUEST);
       gnutls_handshake_set_timeout (self->tls, GNUTLS_DEFAULT_HANDSHAKE_TIMEOUT);
       gnutls_transport_set_int (self->tls, self->client_fd);
 
@@ -866,10 +867,10 @@ connection_free (Connection *self)
  */
 void
 connection_crypto_init (const char *certfile,
-                        gnutls_certificate_request_t request_mode)
+                        bool        client_cert_auth)
 {
   parameters.certificate = certificate_load (certfile);
-  parameters.request_mode = request_mode;
+  parameters.client_cert_auth = client_cert_auth;
 }
 
 void

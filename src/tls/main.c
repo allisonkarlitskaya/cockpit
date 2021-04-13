@@ -93,7 +93,6 @@ int
 main (int argc, char **argv)
 {
   struct arguments arguments;
-  gnutls_certificate_request_t client_cert_mode = GNUTLS_CERT_IGNORE;
   const char *runtimedir;
 
   /* default option values */
@@ -118,10 +117,10 @@ main (int argc, char **argv)
         errx (EXIT_FAILURE, "Could not locate server certificate: %s", error);
       debug (SERVER, "Using certificate %s", certfile);
 
-      if (cockpit_conf_bool ("WebService", "ClientCertAuthentication", false))
-        client_cert_mode = GNUTLS_CERT_REQUEST;
-
-      connection_crypto_init (certfile, client_cert_mode);
+      bool client_cert_auth = cockpit_conf_bool ("WebService",
+                                                 "ClientCertAuthentication",
+                                                 false);
+      connection_crypto_init (certfile, client_cert_auth);
       free (certfile);
     }
 
