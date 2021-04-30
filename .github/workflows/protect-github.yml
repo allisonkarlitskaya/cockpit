@@ -5,6 +5,7 @@ on:
 
 jobs:
   check:
+    name: Protect github metadata
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'github-metadata-change') }}
     runs-on: ubuntu-latest
     timeout-minutes: 1
