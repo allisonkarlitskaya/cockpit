@@ -1,0 +1,20 @@
+name: github_metadata
+on:
+  pull_request_target:
+    types: [assigned, labeled, opened, synchronize, reopened]
+
+jobs:
+  check:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'github-metadata-change') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    env:
+      GIT_DIR: git-dir.git
+    steps:
+      - name: Fetch PR
+        git init -b main
+        git add origin '${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}'
+        git fetch '${{ github.event.pull_request.head.sha }}'
+
+      - name: Check for changes to .github/
+        run: git diff '${{ github.sha }}' '${{ github.event.pull_request.head.sha }}' -- .github
