@@ -1,11 +1,11 @@
 name: github_metadata
 on:
   pull_request_target:
-    types: [assigned, labeled, opened, synchronize, reopened]
+    types: [opened, reopened, labeled, unlabeled, synchronize]
 
 jobs:
   check:
-    name: Protect github metadata
+    name: protect github metadata
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'github-metadata-change') }}
     runs-on: ubuntu-latest
     timeout-minutes: 1
