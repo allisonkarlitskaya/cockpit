@@ -15,7 +15,7 @@ jobs:
         run: |
           set -x
           git init -b main
-          git add origin '${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}'
+          git remote add origin '${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}'
           git fetch '${{ github.event.pull_request.head.sha }}'
 
       - name: Check for changes to .github/
