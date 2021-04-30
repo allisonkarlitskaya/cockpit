@@ -12,9 +12,11 @@ jobs:
       GIT_DIR: git-dir.git
     steps:
       - name: Fetch PR
-        git init -b main
-        git add origin '${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}'
-        git fetch '${{ github.event.pull_request.head.sha }}'
+        run: |
+          set -x
+          git init -b main
+          git add origin '${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}'
+          git fetch '${{ github.event.pull_request.head.sha }}'
 
       - name: Check for changes to .github/
         run: git diff '${{ github.sha }}' '${{ github.event.pull_request.head.sha }}' -- .github
