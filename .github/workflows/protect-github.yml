@@ -19,4 +19,4 @@ jobs:
           git fetch origin '${{ github.event.pull_request.head.sha }}'
 
       - name: Check for changes to .github/
-        run: git diff '${{ github.sha }}' '${{ github.event.pull_request.head.sha }}' -- .github
+        run: git diff --exit-code '${{ github.sha }}' '${{ github.event.pull_request.head.sha }}' -- .github
