@@ -75,3 +75,4 @@
     "eslint:fix": "eslint --fix --ext .js --ext .jsx pkg/"
   }
 }
+
