@@ -56,6 +56,11 @@ depcomp
 /containers/*/rpms
 /cockpit.service
 /cockpit-wrapper
+/flatpak-build-dir
+/flatpak-repo-dir
+/.flatpak-builder
+/org.cockpit_project.cockpit-desktop.flatpak
+/org.cockpit_project.cockpit-desktop.yml
 /package-lock.json
 /socket-activation-helper
 /tags

@@ -242,6 +242,21 @@ multi-word: po/cockpit.pot
 title2sentence: multi-word
 	tools/title2sentence.py -i titles -o t2s.sh
 
+FLATPAK_ID=org.cockpit_project.cockpit-desktop
+
+$(FLATPAK_ID).yml: $(srcdir)/src/ws/$(FLATPAK_ID).yml.in
+	$(AM_V_GEN) sed 's,@distdir@,$(distdir),' $< > $@.tmp && $(MV) $@.tmp $@
+
+$(FLATPAK_ID).flatpak: $(FLATPAK_ID).yml
+	rm -rf flatpak-build-dir flatpak-repo-dir
+	XZ_OPT=-0 make dist
+	flatpak-builder --disable-cache flatpak-build-dir $< --repo=flatpak-repo-dir
+	flatpak build-bundle flatpak-repo-dir $@ $(FLATPAK_ID)
+
+flatpak:
+	rm -f $(FLATPAK_ID).flatpak
+	make $(FLATPAK_ID).flatpak
+
 include po/Makefile.am
 include pkg/Makefile.am
 include src/branding/arch/Makefile.am

@@ -165,15 +165,24 @@ esac
 
 detect_browser
 
+if test -f /.flatpak-info; then
+    ssh_cmd='flatpak-spawn --host ssh'
+    unshare_shell='/bin/bash -c'
+else
+    ssh_cmd='ssh'
+    unshare_shell='unshare --user --map-root-user --net /bin/bash -c'
+fi
+
 # start the bridge; this needs to run in the normal user session/namespace
-coproc ${2:+ssh "$2"} cockpit-bridge
+coproc ${2:+$ssh_cmd "$2"} cockpit-bridge
 trap "kill $COPROC_PID; wait $COPROC_PID || true" EXIT INT QUIT PIPE
 
 # start ws and browser in a detached network namespace
 SCRIPT='
-set -eu
 # new namespaces have lo down by default
-ip link set lo up >&2
+if ! test -f /.flatpak-info; then
+    ip link set lo up >&2
+fi
 
 # start browser in a temporary home dir, so that it does not interfere with your real one
 export BROWSER_HOME=$(mktemp --directory --tmpdir cockpit.desktop.XXXXXX)
@@ -181,7 +190,7 @@ export BROWSER_HOME=$(mktemp --directory --tmpdir cockpit.desktop.XXXXXX)
 # forward parent stdin and stdout (from bridge) to cockpit-ws
 # it pretty well does not matter which port we use in our own namespace, so use standard http
 # disable /etc/cockpit/
-XDG_CONFIG_DIRS="$BROWSER_HOME" COCKPIT_SUPERUSER="pkexec" '${COCKPIT_WS:-@libexecdir@/cockpit-ws}' -p 80 -a 127.0.0.90 --local-session=- <&0 >&1 &
+XDG_CONFIG_DIRS="$BROWSER_HOME" COCKPIT_SUPERUSER="pkexec" '${COCKPIT_WS:-@libexecdir@/cockpit-ws}' -p 9090 -a 127.0.0.90 --local-session=- <&0 >&1 &
 WS_PID=$!
 # ... and stop using that stdin/out for everything else
 exec 0</dev/null
@@ -192,7 +201,7 @@ trap "set +e; kill $WS_PID; wait $WS_PID; rm -rf $BROWSER_HOME" EXIT INT QUIT PI
 # if we have netcat, use it for waiting until ws is up
 if type nc >/dev/null 2>&1; then
     for retry in `seq 10`; do
-        nc -z 127.0.0.90 80 && break
+        nc -z 127.0.0.90 9090 && break
         sleep 0.5;
     done
 else
@@ -200,6 +209,6 @@ else
     sleep 3
 fi
 
-HOME="$BROWSER_HOME" '$BROWSER' http://127.0.0.90'"$URL_PATH"'
+HOME="$BROWSER_HOME" '$BROWSER' http://127.0.0.90:9090'"$URL_PATH"'
 '
-unshare --user --map-root-user --net /bin/bash -c "$SCRIPT" <&${COPROC[0]} >&${COPROC[1]}
+$unshare_shell "$SCRIPT" <&${COPROC[0]} >&${COPROC[1]}
