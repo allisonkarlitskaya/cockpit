@@ -54,6 +54,7 @@
 
 #include "certificate.h"
 #include "client-certificate.h"
+#include "httpredirect.h"
 #include "socket-io.h"
 #include "utils.h"
 
@@ -463,30 +464,67 @@ connection_connect_to_dynamic_wsinstance (Connection *self)
 }
 
 static bool
-connection_connect_to_static_wsinstance (Connection *self)
+connection_is_to_localhost (Connection *self)
 {
-  const char *base;
+  struct sockaddr_storage address;
+  socklen_t address_len = sizeof address;
 
-  assert (self->tls == NULL);
+  /* NB: We check our own socket name, not the peer.  That lets us find
+   * out if the connection was made to 127.0.0.1, or some other address.
+   *
+   * In the case that the client connects to 127.0.0.2, for example, the
+   * peer socket is still 127.0.0.1.
+   */
+  if (getsockname (self->client_fd, (struct sockaddr *) &address, &address_len) != 0)
+    return false;
 
-  if (parameters.certificate)
-    base = "http-redirect.sock"; /* server is expecting https connections */
-  else
-    base = "http.sock"; /* server is expecting http connections */
-
-  if (af_unix_connectat (self->ws_fd, parameters.wsinstance_sockdir, base) != 0)
+  switch (address.ss_family)
     {
-      warn ("connect(%s) failed", base);
+    case AF_UNIX:
+      return true;
+
+    case AF_INET:
+        {
+          struct sockaddr_in *inaddr = (struct sockaddr_in *) &address;
+          return inaddr->sin_addr.s_addr == htonl (INADDR_LOOPBACK);
+        }
+
+    case AF_INET6:
+        {
+          struct sockaddr_in6 *in6addr = (struct sockaddr_in6 *) &address;
+
+          /* Need to handle both ::ffff:127.0.0.1 as well as ::1 */
+          if (IN6_IS_ADDR_V4MAPPED (&in6addr->sin6_addr))
+            {
+              /* Ugly, but can't find a better (static) way... */
+              const struct in6_addr v4_loopback = { { { 0,0,0,0,0,0,0,0,0,0,0xff,0xff,127,0,0,1 } } };
+              return IN6_ARE_ADDR_EQUAL(&in6addr->sin6_addr, &v4_loopback);
+            }
+          else
+            return IN6_IS_ADDR_LOOPBACK (in6addr);
+        }
+
+    default:
       return false;
     }
-
-  debug (CONNECTION, "  -> success!");
-  return true;
 }
 
 static bool
 connection_connect_to_wsinstance (Connection *self)
 {
+  if (self->tls == NULL && parameters.certificate && !connection_is_to_localhost (self))
+    {
+      /* server is expecting https connections */
+      self->ws_fd = http_redirect_connect ();
+      if (self->ws_fd == -1)
+        {
+          warn ("failed to connect to httpredirect");
+          return false;
+        }
+
+      return true;
+    }
+
   self->ws_fd = socket (AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
   if (self->ws_fd == -1)
     {
@@ -494,10 +532,19 @@ connection_connect_to_wsinstance (Connection *self)
       return false;
     }
 
-  if (self->tls)
-    return connection_connect_to_dynamic_wsinstance (self);
+  if (self->tls == NULL)
+    {
+      /* server is expecting http connections, or localhost is exempt */
+      if (af_unix_connectat (self->ws_fd, parameters.wsinstance_sockdir, "http.sock") != 0)
+        {
+          warn ("connect(http.sock) failed");
+          return false;
+        }
+
+      return true;
+    }
   else
-    return connection_connect_to_static_wsinstance (self);
+    return connection_connect_to_dynamic_wsinstance (self);
 }
 
 /**
