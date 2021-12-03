@@ -1114,10 +1114,7 @@ handle_packages (CockpitWebServer *server,
   GHashTable *out_headers = NULL;
   gchar **languages = NULL;
   gchar **encodings = NULL;
-  gchar *origin = NULL;
-  const gchar *protocol;
   const gchar *accept;
-  const gchar *host;
 
   name = cockpit_web_response_pop_path (response);
   path = cockpit_web_response_get_path (response);
@@ -1150,12 +1147,8 @@ handle_packages (CockpitWebServer *server,
       cockpit_web_response_set_cache_type (response, COCKPIT_WEB_RESPONSE_NO_CACHE);
     }
 
-  protocol = g_hash_table_lookup (headers, "X-Forwarded-Proto");
-  host = g_hash_table_lookup (headers, "X-Forwarded-Host");
-  if (protocol && host)
-    origin = g_strdup_printf ("%s://%s", protocol, host);
-  if (origin)
-    g_hash_table_insert (out_headers, g_strdup ("Access-Control-Allow-Origin"), origin);
+  const gchar *origin = cockpit_web_response_get_origin (response);
+  g_hash_table_insert (out_headers, g_strdup ("Access-Control-Allow-Origin"), g_strdup (origin));
 
   accept = g_hash_table_lookup (headers, "Accept-Encoding");
   if (!accept)
@@ -1216,7 +1209,9 @@ cockpit_packages_new (void)
 
   packages = g_new0 (CockpitPackages, 1);
 
-  packages->web_server = cockpit_web_server_new (NULL, COCKPIT_WEB_SERVER_NONE);
+  packages->web_server = cockpit_web_server_new ();
+  cockpit_web_server_set_forwarded_host_header (packages->web_server, "X-Forwarded-Host");
+  cockpit_web_server_set_forwarded_protocol_header (packages->web_server, "X-Forwarded-Protocol");
 
   g_signal_connect (packages->web_server, "handle-resource::/checksum",
                     G_CALLBACK (handle_package_checksum), packages);

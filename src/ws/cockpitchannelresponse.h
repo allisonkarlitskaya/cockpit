@@ -32,8 +32,7 @@ void             cockpit_channel_response_serve       (CockpitWebService *servic
                                                        const gchar *path);
 
 void             cockpit_channel_response_open        (CockpitWebService *service,
-                                                       GHashTable *headers,
-                                                       CockpitWebResponse *response,
+                                                       CockpitWebRequest *request,
                                                        JsonObject *open);
 
 G_END_DECLS

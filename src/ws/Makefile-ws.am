@@ -289,7 +289,6 @@ mock_auth_command_SOURCES = src/ws/mock-auth-command.c
 mock_auth_command_LDADD = libcockpit-common-nodeps.a
 
 noinst_PROGRAMS += \
-	$(WS_CHECKS) \
 	mock-echo \
 	mock-auth-command \
 	$(NULL)
@@ -316,7 +315,7 @@ test_authssh_LDADD = \
 
 endif
 
-TESTS += $(WS_CHECKS)
+#TESTS += $(WS_CHECKS)
 
 mock_pam_conv_mod_so_SOURCES = src/ws/mock-pam-conv-mod.c
 mock-pam-conv-mod.so$(EXEEXT): $(mock_pam_conv_mod_so_SOURCES)

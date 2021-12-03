@@ -344,19 +344,9 @@ get_remote_address (GIOStream *io)
 
       if (result == NULL)
         {
-          g_autoptr(GIOStream) base = NULL;
-
-          if (G_IS_TLS_CONNECTION (io))
-            g_object_get (io, "base-io-stream", &base, NULL);
-          else
-            base = g_object_ref (io);
-
-          if (G_IS_SOCKET_CONNECTION (base))
-            {
-              g_autoptr(GSocketAddress) remote = g_socket_connection_get_remote_address (G_SOCKET_CONNECTION (base), NULL);
-              if (remote && G_IS_INET_SOCKET_ADDRESS (remote))
-                result = g_inet_address_to_string (g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS (remote)));
-            }
+          g_autoptr(GSocketAddress) remote = g_socket_connection_get_remote_address (G_SOCKET_CONNECTION (io), NULL);
+          if (remote && G_IS_INET_SOCKET_ADDRESS (remote))
+            result = g_inet_address_to_string (g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS (remote)));
         }
     }
 
@@ -1378,6 +1368,15 @@ cockpit_auth_check_cookie (CockpitAuth *self,
     }
 }
 
+CockpitWebService *
+cockpit_auth_check_cookie_for_request (CockpitAuth *self,
+                                       CockpitWebRequest *request)
+{
+  return cockpit_auth_check_cookie (self,
+                                    cockpit_web_request_get_path (request),
+                                    cockpit_web_request_get_headers (request));
+}
+
 void
 cockpit_auth_local_async (CockpitAuth *self,
                           const gchar *user,
@@ -1594,7 +1593,6 @@ cockpit_auth_login_finish (CockpitAuth *self,
   JsonObject *body = NULL;
   CockpitCreds *creds = NULL;
   CockpitSession *session = NULL;
-  gboolean force_secure;
   gchar *cookie_name;
   gchar *cookie_b64;
   gchar *header;
@@ -1640,10 +1638,7 @@ cockpit_auth_login_finish (CockpitAuth *self,
 
       if (headers)
         {
-          if (self->flags & COCKPIT_AUTH_FOR_TLS_PROXY)
-            force_secure = TRUE;
-          else
-            force_secure = connection ? !G_IS_SOCKET_CONNECTION (connection) : TRUE;
+          gboolean force_secure = g_object_get_data (G_OBJECT (connection), "is-encrypted") != NULL;
           cookie_name = application_cookie_name (cockpit_creds_get_application (creds));
           cookie_b64 = g_base64_encode ((guint8 *)session->cookie, strlen (session->cookie));
           header = g_strdup_printf ("%s=%s; Path=/; SameSite=Strict;%s HttpOnly",
@@ -1678,14 +1673,12 @@ out:
 }
 
 CockpitAuth *
-cockpit_auth_new (gboolean login_loopback,
-                  CockpitAuthFlags flags)
+cockpit_auth_new (gboolean login_loopback)
 {
   CockpitAuth *self = g_object_new (COCKPIT_TYPE_AUTH, NULL);
   const gchar *max_startups_conf;
   gint count = 0;
 
-  self->flags = flags;
   self->login_loopback = login_loopback;
 
   if (cockpit_ws_max_startups == NULL)

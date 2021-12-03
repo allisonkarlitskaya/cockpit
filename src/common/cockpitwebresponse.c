@@ -69,7 +69,6 @@ struct _CockpitWebResponse {
   gchar *method;
   gchar *origin;
 
-  CockpitWebResponseFlags flags;
   CockpitCacheType cache_type;
 
   /* The output queue */
@@ -213,13 +212,11 @@ cockpit_web_response_new (GIOStream *io,
                           const gchar *original_path,
                           const gchar *path,
                           const gchar *query,
-                          GHashTable *in_headers,
-                          CockpitWebResponseFlags flags)
+                          GHashTable *in_headers)
 {
   CockpitWebResponse *self;
   GOutputStream *out;
   const gchar *connection;
-  const gchar *protocol = NULL;
   const gchar *host = NULL;
   gint offset;
 
@@ -268,12 +265,18 @@ cockpit_web_response_new (GIOStream *io,
       host = g_hash_table_lookup (in_headers, "Host");
     }
 
-  self->flags = flags;
-  protocol = cockpit_web_response_get_protocol (self, in_headers);
-  if (protocol && host)
-    self->origin = g_strdup_printf ("%s://%s", protocol, host);
+  if (host)
+    self->origin = g_strdup_printf ("http://%s", host);
 
   return self;
+}
+
+void
+cockpit_web_response_set_origin (CockpitWebResponse *self,
+                                 const gchar *origin)
+{
+  g_free (self->origin);
+  self->origin = g_strdup (origin);
 }
 
 void
@@ -1937,37 +1940,14 @@ cockpit_web_response_get_origin (CockpitWebResponse *self)
   return self->origin;
 }
 
-const gchar *
-cockpit_web_response_get_protocol (CockpitWebResponse *self,
-                                   GHashTable *headers)
-{
-  return cockpit_connection_get_protocol (self->io, headers, self->flags & COCKPIT_WEB_RESPONSE_FOR_TLS_PROXY);
-}
-
 static void
 cockpit_web_response_flow_iface_init (CockpitFlowInterface *iface)
 {
   /* No implementation */
 }
 
-const gchar *
-cockpit_connection_get_protocol (GIOStream *connection,
-                                 GHashTable *headers,
-                                 gboolean for_tls_proxy)
+gboolean
+cockpit_web_response_is_https (CockpitWebResponse *self)
 {
-  const gchar *protocol = NULL;
-  const gchar *protocol_header;
-
-  if (connection && G_IS_TLS_CONNECTION (connection))
-    {
-      protocol = "https";
-    }
-  else
-    {
-      protocol_header = cockpit_conf_string ("WebService", "ProtocolHeader");
-      if (protocol_header && headers)
-         protocol = g_hash_table_lookup (headers, protocol_header);
-    }
-
-  return protocol ?: (for_tls_proxy ? "https" : "http");
+  return g_object_get_data (G_OBJECT (self->io), "is-encrypted") != NULL;
 }

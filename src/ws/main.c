@@ -46,7 +46,6 @@
 static gint      opt_port         = 9090;
 static gchar     *opt_address     = NULL;
 static gboolean  opt_no_tls       = FALSE;
-static gboolean  opt_for_tls_proxy    = FALSE;
 static gboolean  opt_local_ssh    = FALSE;
 static gchar     *opt_local_session = NULL;
 static gboolean  opt_version      = FALSE;
@@ -55,9 +54,6 @@ static GOptionEntry cmd_entries[] = {
   {"port", 'p', 0, G_OPTION_ARG_INT, &opt_port, "Local port to bind to (9090 if unset)", NULL},
   {"address", 'a', 0, G_OPTION_ARG_STRING, &opt_address, "Address to bind to (binds on all addresses if unset)", "ADDRESS"},
   {"no-tls", 0, 0, G_OPTION_ARG_NONE, &opt_no_tls, "Don't use TLS", NULL},
-  {"for-tls-proxy", 0, 0, G_OPTION_ARG_NONE, &opt_for_tls_proxy,
-      "Act behind a https-terminating proxy: accept only https:// origins by default",
-      NULL},
   {"local-ssh", 0, 0, G_OPTION_ARG_NONE, &opt_local_ssh, "Log in locally via SSH", NULL },
   {"local-session", 0, 0, G_OPTION_ARG_STRING, &opt_local_session,
       "Launch a bridge in the local session (path to cockpit-bridge or '-' for stdin/out); implies --no-tls",
@@ -128,7 +124,6 @@ main (int argc,
   g_autofree gchar *login_html = NULL;
   g_autofree gchar *login_po_js = NULL;
   g_autoptr(CockpitWebServer) server = NULL;
-  CockpitWebServerFlags server_flags = COCKPIT_WEB_SERVER_NONE;
   CockpitHandlerData data;
 
   signal (SIGPIPE, SIG_IGN);
@@ -146,13 +141,6 @@ main (int argc,
   if (!g_option_context_parse (context, &argc, &argv, &error))
     goto out;
 
-  /* check mutually exclusive options */
-  if (opt_for_tls_proxy && opt_no_tls)
-    {
-      g_printerr ("--for-tls-proxy and --no-tls are mutually exclusive");
-      goto out;
-    }
-
   if (opt_version)
     {
       print_version ();
@@ -160,7 +148,7 @@ main (int argc,
       goto out;
     }
 
-  if (opt_for_tls_proxy || cockpit_conf_bool ("WebService", "X-For-CockpitClient", FALSE))
+  if (cockpit_conf_bool ("WebService", "X-For-CockpitClient", FALSE))
     opt_no_tls = TRUE;
 
   cockpit_hacks_redirect_gdebug_to_stderr ();
@@ -170,27 +158,12 @@ main (int argc,
       /* no certificate */
     }
   else
-    {
-      g_autofree char *message = NULL;
-      g_autofree gchar *cert_path = cockpit_certificate_locate (false, &message);
-      if (cert_path == NULL)
-        {
-          g_set_error_literal (&error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, message);
-          goto out;
-        }
-
-      g_autofree gchar *key_path = cockpit_certificate_key_path (cert_path);
-
-      certificate = g_tls_certificate_new_from_files (cert_path, key_path, &error);
-      if (certificate == NULL)
-        goto out;
-      g_info ("Using certificate: %s", cert_path);
-    }
+    g_assert_not_reached (); /* XXX */
 
   loop = g_main_loop_new (NULL, FALSE);
 
   data.os_release = cockpit_system_load_os_release ();
-  data.auth = cockpit_auth_new (opt_local_ssh, opt_for_tls_proxy ? COCKPIT_AUTH_FOR_TLS_PROXY : COCKPIT_AUTH_NONE);
+  data.auth = cockpit_auth_new (opt_local_ssh);
   roots = setup_static_roots (data.os_release);
 
   data.branding_roots = (const gchar **)roots;
@@ -199,15 +172,7 @@ main (int argc,
   login_po_js = g_strdup (DATADIR "/cockpit/static/po.js");
   data.login_po_js = (const gchar *)login_po_js;
 
-  if (opt_for_tls_proxy)
-    server_flags |= COCKPIT_WEB_SERVER_FOR_TLS_PROXY;
-  if (!cockpit_conf_bool ("WebService", "AllowUnencrypted", FALSE))
-    {
-      if (!opt_no_tls)
-        server_flags |= COCKPIT_WEB_SERVER_REDIRECT_TLS;
-    }
-
-  server = cockpit_web_server_new (certificate, server_flags);
+  server = cockpit_web_server_new ();
 
   const gint n_listen_fds = sd_listen_fds (true);
   if (n_listen_fds)
@@ -230,12 +195,19 @@ main (int argc,
         }
     }
 
-  if (cockpit_conf_string ("WebService", "UrlRoot"))
-    {
-      g_object_set (server, "url-root",
-                    cockpit_conf_string ("WebService", "UrlRoot"),
-                    NULL);
-    }
+  /* Configuration for reverse proxies */
+  const gchar *value;
+  if ((value = cockpit_conf_string ("WebService", "UrlRoot")))
+    cockpit_web_server_set_url_root (server, value);
+
+  if ((value = cockpit_conf_string ("WebService", "ProtocolHeader")))
+    cockpit_web_server_set_forwarded_protocol_header (server, value);
+
+  if ((value = cockpit_conf_string ("WebService", "ForwardedForHeader")))
+    cockpit_web_server_set_forwarded_for_header (server, value);
+
+  if ((value = cockpit_conf_string ("WebService", "ForwardedHostHeader")))
+    cockpit_web_server_set_forwarded_host_header (server, value);
 
   /* Ignores stuff it shouldn't handle */
   g_signal_connect (server, "handle-stream",
@@ -244,11 +216,6 @@ main (int argc,
   /* External channels, ignore stuff they shouldn't handle */
   g_signal_connect (server, "handle-stream",
                     G_CALLBACK (cockpit_handler_external), &data);
-
-  /* Don't redirect to TLS for /ping */
-  g_object_set (server, "ssl-exception-prefix", "/ping", NULL);
-  g_signal_connect (server, "handle-resource::/ping",
-                    G_CALLBACK (cockpit_handler_ping), &data);
 
   /* Files that cannot be cache-forever, because of well known names */
   g_signal_connect (server, "handle-resource::/favicon.ico",

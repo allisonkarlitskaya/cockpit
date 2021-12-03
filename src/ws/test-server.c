@@ -301,12 +301,7 @@ on_transport_control (CockpitTransport *transport,
 
 static gboolean
 on_handle_stream_socket (CockpitWebServer *server,
-                         const gchar *original_path,
-                         const gchar *path,
-                         const gchar *method,
-                         GIOStream *io_stream,
-                         GHashTable *headers,
-                         GByteArray *input,
+                         CockpitWebRequest *request,
                          gpointer user_data)
 {
   CockpitTransport *transport;
@@ -322,6 +317,7 @@ on_handle_stream_socket (CockpitWebServer *server,
   gchar *value;
   gchar **argv;
 
+  const gchar *path = cockpit_web_request_get_path (request);
   if (!g_str_has_prefix (path, "/cockpit/socket"))
     return FALSE;
 
@@ -390,7 +386,7 @@ on_handle_stream_socket (CockpitWebServer *server,
       g_signal_handler_disconnect (transport, handler);
     }
 
-  cockpit_web_service_socket (service, path, io_stream, headers, input, FALSE /* for_tls_proxy */);
+  cockpit_web_service_socket (service, request);
 
   /* Keeps ref on itself until it closes */
   g_object_unref (service);
@@ -426,15 +422,9 @@ on_echo_socket_close (WebSocketConnection *ws,
 
 static gboolean
 on_handle_stream_external (CockpitWebServer *server,
-                           const gchar *original_path,
-                           const gchar *path,
-                           const gchar *method,
-                           GIOStream *io_stream,
-                           GHashTable *headers,
-                           GByteArray *input,
+                           CockpitWebRequest *request,
                            gpointer user_data)
 {
-  CockpitWebResponse *response;
   gboolean handled = FALSE;
   const gchar *upgrade;
   CockpitCreds *creds;
@@ -447,6 +437,8 @@ on_handle_stream_external (CockpitWebServer *server,
   gsize length;
   gsize seglen;
 
+  const gchar *path = cockpit_web_request_get_path (request);
+
   if (g_str_has_prefix (path, "/cockpit/echosocket"))
     {
       const gchar *protocols[] = { "cockpit1", NULL };
@@ -457,8 +449,10 @@ on_handle_stream_external (CockpitWebServer *server,
       url = g_strdup_printf ("ws://localhost:%u%s", server_port, path);
       origins[0] = g_strdup_printf ("http://localhost:%u", server_port);
 
-      ws = web_socket_server_new_for_stream (url, (const gchar **)origins,
-                                             protocols, io_stream, headers, input);
+      ws = web_socket_server_new_for_stream (url, (const gchar **)origins, protocols,
+                                             cockpit_web_request_get_io_stream (request),
+                                             cockpit_web_request_get_headers (request),
+                                             cockpit_web_request_get_buffer (request));
 
       g_signal_connect (ws, "message", G_CALLBACK (on_echo_socket_message), NULL);
       g_signal_connect (ws, "close", G_CALLBACK (on_echo_socket_close), NULL);
@@ -503,18 +497,15 @@ on_handle_stream_external (CockpitWebServer *server,
 
       if (open)
         {
-          upgrade = g_hash_table_lookup (headers, "Upgrade");
+          upgrade = cockpit_web_request_lookup_header (request, "Upgrade");
           if (upgrade && g_ascii_strcasecmp (upgrade, "websocket") == 0)
             {
-              cockpit_channel_socket_open (service, open, path, path, io_stream, headers, input, FALSE /* for_tls_proxy */);
+              cockpit_channel_socket_open (service, open, request);
               handled = TRUE;
             }
           else
             {
-              response = cockpit_web_response_new (io_stream, path, path, NULL, headers, COCKPIT_WEB_RESPONSE_NONE);
-              cockpit_web_response_set_method (response, method);
-              cockpit_channel_response_open (service, headers, response, open);
-              g_object_unref (response);
+              cockpit_channel_response_open (service, request, open);
               handled = TRUE;
             }
 
@@ -662,8 +653,7 @@ server_ready (void)
     server_port = 8765;
 
   server_roots = cockpit_web_response_resolve_roots (roots);
-  server = cockpit_web_server_new (NULL, /* TLS cert */
-                                   COCKPIT_WEB_SERVER_NONE);
+  server = cockpit_web_server_new ();
   server_port = cockpit_web_server_add_inet_listener (server, NULL, server_port, &error);
   g_assert_no_error (error);
   g_assert (server_port != 0);

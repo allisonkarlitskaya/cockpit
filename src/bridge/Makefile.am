@@ -129,7 +129,7 @@ EXTRA_DIST += \
 # -----------------------------------------------------------------------------
 # TESTS
 
-BRIDGE_CHECKS = \
+xBRIDGE_CHECKS = \
 	test-paths \
 	test-rules \
 	test-pipe-channel \
@@ -318,7 +318,7 @@ cockpit_pcp_LDADD = $(libcockpit_pcp_LIBS)
 pmlogconfdir = $(localstatedir)/lib/pcp/config/pmlogconf/tools
 pmlogconf_DATA = $(pmlogconf_files)
 
-BRIDGE_CHECKS += \
+xBRIDGE_CHECKS += \
 	test-pcp \
 	test-pcp-archives \
 	$(NULL)

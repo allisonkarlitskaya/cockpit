@@ -21,6 +21,7 @@
 #define __WEB_SOCKET_SERVER_H__
 
 #include "websocketconnection.h"
+#include "common/cockpitwebserver.h"
 
 #include <gio/gio.h>
 

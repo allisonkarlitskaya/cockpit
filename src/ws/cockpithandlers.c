@@ -86,15 +86,11 @@ on_web_socket_noauth (WebSocketConnection *connection,
 }
 
 static void
-handle_noauth_socket (GIOStream *io_stream,
-                      const gchar *path,
-                      GHashTable *headers,
-                      GByteArray *input_buffer,
-                      gboolean for_tls_proxy)
+handle_noauth_socket (CockpitWebRequest *request)
 {
   WebSocketConnection *connection;
 
-  connection = cockpit_web_service_create_socket (NULL, path, io_stream, headers, input_buffer, for_tls_proxy);
+  connection = cockpit_web_service_create_socket (NULL, request);
 
   g_signal_connect (connection, "open", G_CALLBACK (on_web_socket_noauth), NULL);
 
@@ -105,12 +101,7 @@ handle_noauth_socket (GIOStream *io_stream,
 /* Called by @server when handling HTTP requests to /cockpit/socket */
 gboolean
 cockpit_handler_socket (CockpitWebServer *server,
-                        const gchar *original_path,
-                        const gchar *path,
-                        const gchar *method,
-                        GIOStream *io_stream,
-                        GHashTable *headers,
-                        GByteArray *input,
+                        CockpitWebRequest *request,
                         CockpitHandlerData *ws)
 {
   CockpitWebService *service = NULL;
@@ -121,6 +112,7 @@ cockpit_handler_socket (CockpitWebServer *server,
    * However older javascript may connect on /socket, so we continue to support that.
    */
 
+  const gchar *path = cockpit_web_request_get_path (request);
   if (path && path[0])
     segment = strchr (path + 1, '/');
   if (!segment)
@@ -130,21 +122,18 @@ cockpit_handler_socket (CockpitWebServer *server,
     return FALSE;
 
   /* don't support HEAD on a socket, it makes little sense */
-  if (g_strcmp0 (method, "GET") != 0)
+  if (g_strcmp0 (cockpit_web_request_get_method (request), "GET") != 0)
       return FALSE;
 
-  if (headers)
-    service = cockpit_auth_check_cookie (ws->auth, path, headers);
+  service = cockpit_auth_check_cookie_for_request (ws->auth, request);
   if (service)
     {
-      cockpit_web_service_socket (service, path, io_stream, headers, input,
-                                  cockpit_web_server_get_flags (server) & COCKPIT_WEB_SERVER_FOR_TLS_PROXY);
+      cockpit_web_service_socket (service, request);
       g_object_unref (service);
     }
   else
     {
-      handle_noauth_socket (io_stream, path, headers, input,
-                            cockpit_web_server_get_flags (server) & COCKPIT_WEB_SERVER_FOR_TLS_PROXY);
+      handle_noauth_socket (request);
     }
 
   return TRUE;
@@ -152,12 +141,7 @@ cockpit_handler_socket (CockpitWebServer *server,
 
 gboolean
 cockpit_handler_external (CockpitWebServer *server,
-                          const gchar *original_path,
-                          const gchar *path,
-                          const gchar *method,
-                          GIOStream *io_stream,
-                          GHashTable *headers,
-                          GByteArray *input,
+                          CockpitWebRequest *request,
                           CockpitHandlerData *ws)
 {
   CockpitWebResponse *response = NULL;
@@ -174,6 +158,7 @@ cockpit_handler_external (CockpitWebServer *server,
   gsize seglen;
 
   /* The path must start with /cockpit+xxx/channel/csrftoken? or similar */
+  const gchar *path = cockpit_web_request_get_path (request);
   if (path && path[0])
     segment = strchr (path + 1, '/');
   if (!segment)
@@ -183,7 +168,7 @@ cockpit_handler_external (CockpitWebServer *server,
   segment += 9;
 
   /* Make sure we are authenticated, otherwise 404 */
-  service = cockpit_auth_check_cookie (ws->auth, path, headers);
+  service = cockpit_auth_check_cookie_for_request (ws->auth, request);
   if (!service)
     return FALSE;
 
@@ -227,29 +212,20 @@ cockpit_handler_external (CockpitWebServer *server,
 
   if (!open)
     {
-      response = cockpit_web_response_new (io_stream, original_path, path, NULL, headers,
-                                           (cockpit_web_server_get_flags (server) & COCKPIT_WEB_SERVER_FOR_TLS_PROXY) ?
-                                             COCKPIT_WEB_RESPONSE_FOR_TLS_PROXY : COCKPIT_WEB_RESPONSE_NONE);
-
+      response = cockpit_web_request_respond (request);
       cockpit_web_response_error (response, 400, NULL, NULL);
       g_object_unref (response);
     }
   else
     {
-      upgrade = g_hash_table_lookup (headers, "Upgrade");
+      upgrade = cockpit_web_request_lookup_header (request, "Upgrade");
       if (upgrade && g_ascii_strcasecmp (upgrade, "websocket") == 0)
         {
-          cockpit_channel_socket_open (service, open, original_path, path, io_stream, headers, input,
-                                       cockpit_web_server_get_flags (server) & COCKPIT_WEB_SERVER_FOR_TLS_PROXY);
+          cockpit_channel_socket_open (service, open, request);
         }
       else
         {
-          response = cockpit_web_response_new (io_stream, original_path, path, NULL, headers,
-                                               (cockpit_web_server_get_flags (server) & COCKPIT_WEB_SERVER_FOR_TLS_PROXY) ?
-                                                 COCKPIT_WEB_RESPONSE_FOR_TLS_PROXY : COCKPIT_WEB_RESPONSE_NONE);
-          cockpit_web_response_set_method (response, method);
-          cockpit_channel_response_open (service, headers, response, open);
-          g_object_unref (response);
+          cockpit_channel_response_open (service, request, open);
         }
       json_object_unref (open);
     }
@@ -477,7 +453,7 @@ send_login_html (CockpitWebResponse *response,
   else
     {
       /* The login Content-Security-Policy allows the page to have inline <script> and <style> tags. */
-      gboolean secure = g_strcmp0 (cockpit_web_response_get_protocol (response, headers), "https") == 0;
+      gboolean secure = cockpit_web_response_is_https (response);
       cookie_line = cockpit_auth_empty_cookie_value (path, secure);
       content_security_policy = cockpit_web_response_security_policy ("default-src 'self' 'unsafe-inline'",
                                                                       cockpit_web_response_get_origin (response));

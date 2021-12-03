@@ -1297,63 +1297,34 @@ cockpit_web_service_new (CockpitCreds *creds,
 
 WebSocketConnection *
 cockpit_web_service_create_socket (const gchar **protocols,
-                                   const gchar *path,
-                                   GIOStream *io_stream,
-                                   GHashTable *headers,
-                                   GByteArray *input_buffer,
-                                   gboolean for_tls_proxy)
+                                   CockpitWebRequest *request)
 {
   WebSocketConnection *connection;
-  const gchar *host = NULL;
-  const gchar *protocol = NULL;
   const gchar * const *origins;
   gchar *allocated = NULL;
-  gchar *origin = NULL;
-  gchar *defaults[2];
-  gboolean is_https;
+  const gchar *defaults[2];
   gchar *url;
 
-  g_return_val_if_fail (path != NULL, NULL);
+  const gchar *origin = cockpit_web_request_get_origin (request);
 
-  if (headers)
-    host = g_hash_table_lookup (headers, "Host");
-  if (!host)
-    host = cockpit_ws_default_host_header;
-
-  /* No headers case for tests */
-  if (cockpit_ws_default_protocol_header && !headers &&
-      cockpit_conf_string ("WebService", "ProtocolHeader"))
-    {
-      protocol = cockpit_ws_default_protocol_header;
-    }
-  else
-    {
-      protocol = cockpit_connection_get_protocol (io_stream, headers, for_tls_proxy);
-    }
-
-  g_debug("cockpit_web_service_create_socket: host %s, protocol %s, for_tls_proxy %i", host, protocol, for_tls_proxy);
-
-  is_https = g_strcmp0 (protocol, "https") == 0;
-
-  url = g_strdup_printf ("%s://%s%s",
-                         is_https ? "wss" : "ws",
-                         host ? host : "localhost",
-                         path);
+  /* replace "http" with "ws" (and "https" with "wss") */
+  g_assert (g_str_has_prefix (origin, "http"));
+  url = g_strdup_printf ("ws%s", origin + 4);
 
   origins = cockpit_conf_strv ("WebService", "Origins", ' ');
   if (origins == NULL)
     {
-      origin = g_strdup_printf ("%s://%s", is_https ? "https" : "http", host);
       defaults[0] = origin;
       defaults[1] = NULL;
-      origins = (const gchar **)defaults;
+      origins = defaults;
     }
 
   connection = web_socket_server_new_for_stream (url, origins, protocols,
-                                                 io_stream, headers, input_buffer);
+                                                 cockpit_web_request_get_io_stream (request),
+                                                 cockpit_web_request_get_headers (request),
+                                                 cockpit_web_request_get_buffer (request));
   g_free (allocated);
   g_free (url);
-  g_free (origin);
 
   return connection;
 }
@@ -1365,24 +1336,18 @@ cockpit_web_service_create_socket (const gchar **protocols,
  * @input_buffer: optional bytes already parsed after headers
  * @auth: authentication object
  * @creds: credentials of user or NULL for failed auth
- * @for_tls_proxy: Assume that the Browser is making TLS connections that are terminated
- *                 in a reverse proxy in front of cockpit-ws
  *
  * Serves the WebSocket on the given web service. Holds an extra
  * reference to the web service until the socket is closed.
  */
 void
 cockpit_web_service_socket (CockpitWebService *self,
-                            const gchar *path,
-                            GIOStream *io_stream,
-                            GHashTable *headers,
-                            GByteArray *input_buffer,
-                            gboolean for_tls_proxy)
+                            CockpitWebRequest *request)
 {
   const gchar *protocols[] = { "cockpit1", NULL };
   WebSocketConnection *connection;
 
-  connection = cockpit_web_service_create_socket (protocols, path, io_stream, headers, input_buffer, for_tls_proxy);
+  connection = cockpit_web_service_create_socket (protocols, request);
 
   g_signal_connect (connection, "open", G_CALLBACK (on_web_socket_open), self);
   g_signal_connect (connection, "closing", G_CALLBACK (on_web_socket_closing), self);

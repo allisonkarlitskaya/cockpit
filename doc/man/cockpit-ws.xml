@@ -42,7 +42,6 @@
       <arg><option>--port</option> <replaceable>PORT</replaceable></arg>
       <arg><option>--address</option> <replaceable>ADDRESS</replaceable></arg>
       <arg><option>--no-tls</option></arg>
-      <arg><option>--for-tls-proxy</option></arg>
       <arg><option>--local-ssh</option></arg>
       <arg><option>--local-session</option> <replaceable>BRIDGE</replaceable></arg>
     </cmdsynopsis>

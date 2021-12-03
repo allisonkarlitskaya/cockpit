@@ -22,26 +22,14 @@
 
 #include <gio/gio.h>
 
+#include "cockpitwebresponse.h"
+
 G_BEGIN_DECLS
 
 #define COCKPIT_TYPE_WEB_SERVER  (cockpit_web_server_get_type ())
 G_DECLARE_FINAL_TYPE(CockpitWebServer, cockpit_web_server, COCKPIT, WEB_SERVER, GObject)
 
 extern guint cockpit_webserver_request_timeout;
-
-typedef enum {
-  COCKPIT_WEB_SERVER_NONE = 0,
-  COCKPIT_WEB_SERVER_FOR_TLS_PROXY = 1 << 0,
-  /* http → https redirection for non-localhost addresses */
-  COCKPIT_WEB_SERVER_REDIRECT_TLS = 1 << 1,
-  COCKPIT_WEB_SERVER_FLAGS_MAX = 1 << 2
-} CockpitWebServerFlags;
-
-
-CockpitWebServer * cockpit_web_server_new           (GTlsCertificate *certificate,
-                                                     CockpitWebServerFlags flags);
-
-void               cockpit_web_server_start         (CockpitWebServer *self);
 
 GHashTable *       cockpit_web_server_new_table     (void);
 
@@ -51,7 +39,76 @@ gchar *            cockpit_web_server_parse_cookie    (GHashTable *headers,
 gchar **           cockpit_web_server_parse_accept_list   (const gchar *accept,
                                                            const gchar *first);
 
-CockpitWebServerFlags cockpit_web_server_get_flags         (CockpitWebServer *self);
+typedef struct _CockpitWebRequest CockpitWebRequest;
+GType
+cockpit_web_request_get_type (void);
+#define COCKPIT_TYPE_WEB_REQUEST (cockpit_web_request_get_type ())
+
+const gchar *
+cockpit_web_request_get_path (CockpitWebRequest *self);
+
+GHashTable *
+cockpit_web_request_get_headers (CockpitWebRequest *self);
+
+const gchar *
+cockpit_web_request_get_method (CockpitWebRequest *self);
+
+const gchar *
+cockpit_web_request_lookup_header (CockpitWebRequest *self,
+                                   const gchar *header);
+
+const gchar *
+cockpit_web_request_get_origin (CockpitWebRequest *self);
+
+const gchar *
+cockpit_web_request_get_host (CockpitWebRequest *self);
+
+const gchar *
+cockpit_web_request_get_protocol (CockpitWebRequest *self);
+
+const gchar *
+cockpit_web_request_get_origin_ip (CockpitWebRequest *self);
+
+const gchar *
+cockpit_web_request_get_client_certificate (CockpitWebRequest *self);
+
+GIOStream *
+cockpit_web_request_get_io_stream (CockpitWebRequest *self);
+
+GByteArray *
+cockpit_web_request_get_buffer (CockpitWebRequest *self);
+
+gchar *
+cockpit_web_request_parse_cookie (CockpitWebRequest *self,
+                                  const gchar *cookie);
+
+CockpitWebResponse *
+cockpit_web_request_respond (CockpitWebRequest *self);
+
+CockpitWebServer *
+cockpit_web_server_new (void);
+
+void
+cockpit_web_server_start (CockpitWebServer *self);
+
+void
+cockpit_web_server_set_url_root (CockpitWebServer *self,
+                                 const gchar      *url_root);
+
+const gchar *
+cockpit_web_server_get_url_root (CockpitWebServer *self);
+
+void
+cockpit_web_server_set_forwarded_host_header (CockpitWebServer *self,
+                                              const gchar *forwarded_host_header);
+
+void
+cockpit_web_server_set_forwarded_protocol_header (CockpitWebServer *self,
+                                                  const gchar *forwarded_protocol_header);
+
+void
+cockpit_web_server_set_forwarded_for_header (CockpitWebServer *self,
+                                             const gchar *forwarded_for_header);
 
 guint16
 cockpit_web_server_add_inet_listener (CockpitWebServer *self,

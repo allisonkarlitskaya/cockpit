@@ -36,21 +36,11 @@ typedef struct {
 } CockpitHandlerData;
 
 gboolean       cockpit_handler_socket            (CockpitWebServer *server,
-                                                  const gchar *original_path,
-                                                  const gchar *path,
-                                                  const gchar *method,
-                                                  GIOStream *io_stream,
-                                                  GHashTable *headers,
-                                                  GByteArray *input,
+                                                  CockpitWebRequest *request,
                                                   CockpitHandlerData *data);
 
 gboolean       cockpit_handler_external          (CockpitWebServer *server,
-                                                  const gchar *original_path,
-                                                  const gchar *path,
-                                                  const gchar *method,
-                                                  GIOStream *io_stream,
-                                                  GHashTable *headers,
-                                                  GByteArray *input,
+                                                  CockpitWebRequest *request,
                                                   CockpitHandlerData *data);
 
 gboolean       cockpit_handler_root              (CockpitWebServer *server,

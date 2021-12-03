@@ -84,12 +84,7 @@ on_socket_close (WebSocketConnection *ws,
 
 static gboolean
 handle_socket (CockpitWebServer *server,
-               const gchar *original_path,
-               const gchar *path,
-               const gchar *method,
-               GIOStream *io_stream,
-               GHashTable *headers,
-               GByteArray *input,
+               CockpitWebRequest *request,
                gpointer data)
 {
   const gchar *origins[] = { NULL, NULL };
@@ -97,14 +92,17 @@ handle_socket (CockpitWebServer *server,
   WebSocketConnection *ws = NULL;
   TestCase *test = data;
 
+  const gchar *path = cockpit_web_request_get_path (request);
   if (!g_str_equal (path, "/socket"))
     return FALSE;
   /* HEAD on a socket makes little sense, we don't test it */
-  g_assert (g_strcmp0 (method, "GET") == 0);
+  g_assert (g_strcmp0 (cockpit_web_request_get_method (request), "GET") == 0);
 
   origins[0] = test->origin;
-  ws = web_socket_server_new_for_stream (test->url, (const gchar **)origins,
-                                         protocols, io_stream, headers, input);
+  ws = web_socket_server_new_for_stream (test->url, (const gchar **)origins, protocols,
+                                         cockpit_web_request_get_io_stream (request),
+                                         cockpit_web_request_get_headers (request),
+                                         cockpit_web_request_get_input (request));
 
   g_signal_connect (ws, "message", G_CALLBACK (on_socket_message), NULL);
   g_signal_connect (ws, "close", G_CALLBACK (on_socket_close), test);
@@ -116,7 +114,7 @@ static void
 setup (TestCase *test,
        gconstpointer data)
 {
-  test->server = cockpit_web_server_new (NULL, COCKPIT_WEB_SERVER_NONE);
+  test->server = cockpit_web_server_new ();
   test->port = cockpit_web_server_add_inet_listener (test->server, NULL, 0, NULL);
   cockpit_web_server_start (test->server);
   test->transport = mock_transport_new ();
@@ -240,7 +238,6 @@ test_bad_origin (TestCase *test,
 }
 
 typedef struct {
-  GTlsCertificate *certificate;
   MockTransport *transport;
   CockpitWebServer *server;
   guint port;
@@ -255,10 +252,8 @@ setup_tls (TestTls *test,
 {
   GError *error = NULL;
 
-  test->certificate = g_tls_certificate_new_from_files (SRCDIR "/src/bridge/mock-server.crt",
-                                                        SRCDIR "/src/bridge/mock-server.key", &error);
   g_assert_no_error (error);
-  test->server = cockpit_web_server_new (test->certificate, COCKPIT_WEB_SERVER_NONE);
+  test->server = cockpit_web_server_new ();
   test->port = cockpit_web_server_add_inet_listener (test->server, NULL, 0, &error);
   g_assert_no_error (error);
   g_assert (test->port != 0);
@@ -267,8 +262,8 @@ setup_tls (TestTls *test,
 
   test->transport = mock_transport_new ();
   test->ws_closed = FALSE;
-  test->origin = g_strdup_printf ("https://localhost:%u", test->port);
-  test->url = g_strdup_printf ("wss://localhost:%u/socket", test->port);
+  test->origin = g_strdup_printf ("http://localhost:%u", test->port);
+  test->url = g_strdup_printf ("ws://localhost:%u/socket", test->port);
   g_signal_connect (test->server, "handle-stream",
                     G_CALLBACK (handle_socket), test);
 }
@@ -277,7 +272,6 @@ static void
 teardown_tls (TestTls *test,
           gconstpointer data)
 {
-  g_object_unref (test->certificate);
   g_object_unref (test->server);
   g_object_unref (test->transport);
 

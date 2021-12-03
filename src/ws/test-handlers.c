@@ -91,7 +91,7 @@ base_setup (Test *test)
   const gchar *static_roots[] = { SRCDIR "/src/ws", SRCDIR "/src/branding/default", NULL };
   GError *error = NULL;
 
-  test->server = cockpit_web_server_new (NULL, COCKPIT_WEB_SERVER_NONE);
+  test->server = cockpit_web_server_new ();
   cockpit_web_server_add_inet_listener (test->server, NULL, 0, &error);
   g_assert_no_error (error);
 
@@ -100,7 +100,7 @@ base_setup (Test *test)
   /* Other test->data fields are fine NULL */
   memset (&test->data, 0, sizeof (test->data));
 
-  test->auth = cockpit_auth_new (FALSE, COCKPIT_AUTH_NONE);
+  test->auth = cockpit_auth_new (FALSE);
   test->roots = cockpit_web_response_resolve_roots (static_roots);
   test->login_html = g_strdup(SRCDIR "/pkg/static/login.html");
 
@@ -123,7 +123,7 @@ setup (Test *test,
        gconstpointer path)
 {
   base_setup (test);
-  test->response = cockpit_web_response_new (test->io, path, path, NULL, NULL, COCKPIT_WEB_RESPONSE_NONE);
+  test->response = cockpit_web_response_new (test->io, path, path, NULL, NULL);
   g_signal_connect (test->response, "done",
                     G_CALLBACK (on_web_response_done_set_flag),
                     &test->response_done);
@@ -385,7 +385,7 @@ setup_default (Test *test,
   base_setup (test);
   test->response = cockpit_web_response_new (test->io,
                                             fixture->org_path ? fixture->org_path : fixture->path,
-                                            fixture->path, NULL, NULL, COCKPIT_WEB_RESPONSE_NONE);
+                                            fixture->path, NULL, NULL);
   g_signal_connect (test->response, "done",
                     G_CALLBACK (on_web_response_done_set_flag),
                     &test->response_done);
@@ -466,7 +466,7 @@ test_resource_checksum (Test *test,
   input = g_memory_input_stream_new ();
   io = g_simple_io_stream_new (input, output);
   path = "/cockpit/@localhost/checksum";
-  response = cockpit_web_response_new (io, path, path, NULL, NULL, COCKPIT_WEB_RESPONSE_NONE);
+  response = cockpit_web_response_new (io, path, path, NULL, NULL);
   g_signal_connect (response, "done", G_CALLBACK (on_web_response_done_set_flag), &response_done);
   g_assert (cockpit_handler_default (test->server, path, test->headers, response, &test->data));
 
@@ -760,7 +760,7 @@ test_socket_unauthenticated (void)
 
   cockpit_socket_streampair (&io_a, &io_b);
 
-  server = cockpit_web_server_new (NULL, COCKPIT_WEB_SERVER_NONE);
+  server = cockpit_web_server_new ();
   cockpit_web_server_add_inet_listener (server, NULL, 0, NULL);
   g_assert_no_error (error);
 

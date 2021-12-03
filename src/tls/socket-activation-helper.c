@@ -45,8 +45,8 @@ static struct instance_type
 } instance_types[] = {
   {"https-factory.sock", {}}, /* treated specially */
   /* support up to 2 ws instances (+1 special); increase this if the unit test needs more */
-  {"https@" SHA256_NIL ".sock", {"--for-tls-proxy", "--port=0"}},
-  {"https@" CLIENT_CERT_FINGERPRINT ".sock", {"--for-tls-proxy", "--port=0"}},
+  {"https@" SHA256_NIL ".sock", {"--no-tls", "--port=0"}},
+  {"https@" CLIENT_CERT_FINGERPRINT ".sock", {"--no-tls", "--port=0"}},
   {"https@" ALTERNATE_FINGERPRINT ".sock", {}}, /* treated specially */
   {"http.sock", {"--no-tls", "--port", "0"}},
 };
