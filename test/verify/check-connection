@@ -23,7 +23,7 @@ import os
 import subprocess
 
 import parent
-from testlib import *
+from testlib import * # bad comment
 
 
 @skipDistroPackage()
