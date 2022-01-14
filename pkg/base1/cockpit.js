@@ -3953,7 +3953,7 @@ function factory() {
         else if (problem == "invalid-hostkey")
             return _("Host key is incorrect");
         else if (problem == "internal-error")
-            return _("Internal error");
+            return _('Internal error');
         else if (problem == "timeout")
             return _("Connection has timed out.");
         else if (problem == "no-cockpit")
