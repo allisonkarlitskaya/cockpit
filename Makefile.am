@@ -243,3 +243,7 @@ include src/tls/Makefile-tls.am
 include src/websocket/Makefile-websocket.am
 include src/ws/Makefile-ws.am
 include tools/Makefile-tools.am
+
+
+cockpit-bridge$(EXEEXT):
+	ln -sfT src/bridge.py/bridge.py $@
