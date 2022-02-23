@@ -1,4 +1,0 @@
-exec python -c "$(base64 -d << EOF | xz -d
-@script@
-EOF
-)"; echo "Could not start the bridge.  Aborting."; exit 1
