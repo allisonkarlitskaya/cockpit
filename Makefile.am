@@ -231,7 +231,6 @@ include src/branding/rhel/Makefile.am
 include src/branding/scientific/Makefile.am
 include src/branding/ubuntu/Makefile.am
 include src/bridge/Makefile.am
-include src/bridge.py/Makefile.am
 include src/client/Makefile.am
 include src/common/Makefile-common.am
 include src/pam-ssh-add/Makefile.am
