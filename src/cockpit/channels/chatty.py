@@ -15,27 +15,25 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from .chatty import ChattyChannel
-from .dbus import DBusChannel
-from .dbus_internal import DBusInternalChannel
-from .filesystem import FsListChannel, FsReadChannel, FsReplaceChannel, FsWatchChannel
-from .metrics import MetricsChannel
-from .packages import PackagesChannel
-from .stream import StreamChannel
-from .trivial import EchoChannel, NullChannel
+import asyncio
+import logging
+
+from ..channel import AsyncChannel
+
+logger = logging.getLogger(__name__)
 
 
-CHANNEL_TYPES = [
-    ChattyChannel,
-    DBusChannel,
-    DBusInternalChannel,
-    EchoChannel,
-    FsListChannel,
-    FsReadChannel,
-    FsReplaceChannel,
-    FsWatchChannel,
-    MetricsChannel,
-    NullChannel,
-    PackagesChannel,
-    StreamChannel,
-]
+class ChattyChannel(AsyncChannel):
+    payload = 'chatty1'
+
+    async def run(self, options):
+        await self.write(f"You sent options! {options}".encode('utf-8'))
+
+        while True:
+            await self.write("You still there?\n".encode('utf-8'))
+
+            try:
+                await asyncio.wait_for(self.read(), 1)
+                return
+            except asyncio.TimeoutError:
+                continue

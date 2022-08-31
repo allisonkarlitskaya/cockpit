@@ -59,6 +59,7 @@ PYTHON_BRIDGE_FILES = \
 	src/cockpit/bridge.py \
 	src/cockpit/channel.py \
 	src/cockpit/channels/__init__.py \
+	src/cockpit/channels/chatty.py \
 	src/cockpit/channels/dbus.py \
 	src/cockpit/channels/dbus_internal.py \
 	src/cockpit/channels/filesystem.py \
