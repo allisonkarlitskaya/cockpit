@@ -32,7 +32,7 @@ jobs:
 
       - id: publish
         name: Publish GitHub release
-        uses: cockpit-project/action-release@62db9d9850a1adec300500d84035c4f523fd5290
+        uses: cockpit-project/action-release@d922a7ea21329cb46762e52a218c120e388fb0c1
         with:
           filename: "cockpit-${{ github.ref_name }}.tar.xz"
 
@@ -102,6 +102,10 @@ jobs:
     permissions: {}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
       - name: Checkout source repository
         uses: actions/checkout@v3
         with:
@@ -116,20 +120,19 @@ jobs:
           fetch-depth: 0
 
       - name: Update flathub repository
+        env:
+          DOWNLOAD: ${{ needs.source.outputs.download }}
+          CHECKSUM: ${{ needs.source.outputs.checksum }}
+          TAG_BODY: ${{ needs.source.outputs.body }}
         run: |
           set -x
-
-          DOWNLOAD='${{ needs.source.outputs.download }}'
-          CHECKSUM='${{ needs.source.outputs.checksum }}'
 
           git config --global user.name "GitHub Workflow"
           git config --global user.email "cockpituous@cockpit-project.org"
 
           cd flathub
           git checkout -b "${{ github.ref_name }}"
-          cat <<END_OF_RELEASE_NOTES
-          ${{ needs.source.outputs.body }}
-          END_OF_RELEASE_NOTES | ../src/containers/flatpak/add-release \
+          printf '%s\n' "${TAG_BODY}" | ../src/containers/flatpak/add-release \
              org.cockpit_project.CockpitClient.releases.xml \
              "${{ github.ref_name }}" \
              "$(date +%Y-%m%d)"
