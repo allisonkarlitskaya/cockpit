@@ -112,7 +112,6 @@ jobs:
         with:
           path: flathub
           repository: flathub/org.cockpit_project.CockpitClient
-          ssh-key: ${{ secrets.DEPLOY_KEY }}
           # this is needed so we can push to a different repository
           fetch-depth: 0
 
